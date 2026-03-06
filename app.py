@@ -3,7 +3,7 @@ from datetime import datetime
 import sqlite3
 import pandas as pd
 
-# --- 1. DATABASE FUNCTIONS (Keep these at the top) ---
+# --- 1. DATABASE FUNCTIONS ---
 def init_db():
     conn = sqlite3.connect('chinmaya.db')
     c = conn.cursor()
@@ -26,7 +26,6 @@ def get_user_data(username):
     conn.close()
     return row if row else (120, 0, 0, 0)
 
-# Initialize the DB once when the script starts
 init_db()
 
 # --- 2. PAGE CONFIG & STYLING ---
@@ -61,31 +60,41 @@ if role == "Guru Dashboard":
     password = st.sidebar.text_input("Enter Teacher Access Code", type="password")
     
     if password == "CMS123":
-        st.success("Access Granted. You can now edit student data directly.")
+        st.success("Access Granted.")
         
-        conn = sqlite3.connect('chinmaya.db')
-        # We load all columns so the teacher can see everything
-        df = pd.read_sql_query("SELECT * FROM users", conn)
-        
+        # --- 1. BHAJAN TREASURY (Guru Side) ---
+        st.header("🎵 Bhajan Treasury")
         with st.container(border=True):
-            st.write("### Student Data Editor")
-            st.caption("Double-click any cell to edit points or task status (1=Done, 0=Not Done).")
+            st.write("Upload audio files for students to practice.")
+            uploaded_bhajan = st.file_uploader("Choose an MP3 file", type=["mp3"])
             
-            # The Magic: Data Editor allows inline editing
-            edited_df = st.data_editor(df, use_container_width=True, hide_index=True)
-            
-            if st.button("💾 Save All Changes to Database"):
-                edited_df.to_sql('users', conn, if_exists='replace', index=False)
-                st.success("Database updated! The students will see these changes immediately.")
-        conn.close()
+            if uploaded_bhajan is not None:
+                # We store the file in session state for now so the student can hear it
+                st.session_state.current_bhajan = uploaded_bhajan
+                st.audio(uploaded_bhajan)
+                st.success(f"Successfully uploaded: {uploaded_bhajan.name}")
+
+        # --- 2. GURU BROADCAST SECTION ---
+        st.markdown("---")
+        st.header("📢 Send a Mission Broadcast")
+        with st.container(border=True):
+            broadcast_msg = st.text_area("Type your message to all students & parents:")
+            if st.button("🚀 Post Announcement"):
+                if broadcast_msg:
+                    st.session_state.latest_announcement = broadcast_msg
+                    st.success("Announcement Posted!")
     
     elif password == "":
-        st.info("Please enter the access code in the sidebar to view data.")
+        st.info("Please enter the access code in the sidebar.")
     else:
         st.error("Incorrect Access Code")
 
-# --- 5. STUDENT PORTAL (Your Original Code) ---
+# --- 5. STUDENT PORTAL ---
 else:
+    # --- ANNOUNCEMENT BANNER ---
+    if 'latest_announcement' in st.session_state:
+        st.info(f"**📢 Message from Guru:** {st.session_state.latest_announcement}")
+
     # Initialize session state for student
     if 'username' not in st.session_state:
         st.session_state.username = 'Student1' 
@@ -93,7 +102,7 @@ else:
     pts, t1, t2, t3 = get_user_data(st.session_state.username)
     if 'karma_points' not in st.session_state:
         st.session_state.karma_points = pts
-        
+
     # --- HEADER ---
     col_logo, col_title = st.columns([1, 5])
     with col_logo:
@@ -102,44 +111,40 @@ else:
         st.title("Chinmaya Student Portal")
         st.subheader("Your path to wisdom and reflection.")
 
-    # --- SIDEBAR STATUS ---
-    st.sidebar.header("System Status")
-    st.sidebar.success("Database: ONLINE")
-    st.sidebar.info("Curfew Rule: 10 PM - 7 AM")
-
-    # --- TOP ROW: POINTS & SYLLABUS ---
+    # --- REMAINING STUDENT UI ---
     col_left, col_right = st.columns(2)
-
     with col_left:
         with st.container(border=True):
             st.header("✨ My Karma Points")
             st.metric(label="Total Points", value=st.session_state.karma_points)
-            progress_val = min(st.session_state.karma_points / 300, 1.0)
-            st.progress(progress_val)
+            st.progress(min(st.session_state.karma_points / 300, 1.0))
 
     with col_right:
         with st.container(border=True):
             st.header("📖 Course Syllabus")
-            # Get latest from DB
-            pts, t1_val, t2_val, t3_val = get_user_data(st.session_state.username)
+            check1 = st.checkbox("Intro to Vedanta", value=bool(t1), key="s1")
+            check2 = st.checkbox("Gita Chapter 1", value=bool(t2), key="s2")
+            check3 = st.checkbox("The 4 Paths of Yoga", value=bool(t3), key="s3")
             
-            check1 = st.checkbox("Intro to Vedanta", value=bool(t1_val), key="s1")
-            check2 = st.checkbox("Gita Chapter 1", value=bool(t2_val), key="s2")
-            check3 = st.checkbox("The 4 Paths of Yoga", value=bool(t3_val), key="s3")
-            
-            if st.button("Update Progress & Claim Points"):
+            if st.button("Update Progress"):
                 new_points = 120 + (sum([check1, check2, check3]) * 20)
                 conn = sqlite3.connect('chinmaya.db')
                 c = conn.cursor()
-                c.execute('''UPDATE users SET points=?, task1=?, task2=?, task3=? WHERE username=?''', 
+                c.execute('UPDATE users SET points=?, task1=?, task2=?, task3=? WHERE username=?', 
                           (new_points, int(check1), int(check2), int(check3), st.session_state.username))
                 conn.commit()
                 conn.close()
                 st.session_state.karma_points = new_points
-                st.balloons()
                 st.rerun()
-
-    # --- MIDDLE ROW: CALENDAR & INSPIRATION ---
+                
+ # --- STUDENT BHAJAN SECTION ---
+    if 'current_bhajan' in st.session_state:
+        with st.container(border=True):
+            st.header("🎵 Practice Your Bhajans")
+            st.write("Listen to the latest audio shared by your Guru:")
+            st.audio(st.session_state.current_bhajan)
+                           
+ # --- MIDDLE ROW: CALENDAR & INSPIRATION ---
     col_mid_l, col_mid_r = st.columns(2)
     with col_mid_l:
         with st.container(border=True):
@@ -169,4 +174,4 @@ else:
             st.success("☀️ Feed is OPEN.")
             st.text_input("Post a reflection...", key="social_input")
         else:
-            st.error("🌙 Social Curfew Active (10 PM - 7 AM)")
+            st.error("🌙 Social Curfew Active (10 PM - 7 AM)")               
