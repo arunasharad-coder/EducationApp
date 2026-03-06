@@ -65,8 +65,10 @@ if role == "Guru Dashboard":
         # --- 1. BHAJAN TREASURY (Guru Side) ---
         st.header("🎵 Bhajan Treasury")
         with st.container(border=True):
-            st.write("Upload audio files for students to practice.")
-            uploaded_bhajan = st.file_uploader("Choose an MP3 file", type=["mp3"])
+            st.write("Upload audio files for students to practice (MP3, M4A, WAV).")
+            
+            # This is the ONLY line we need for the uploader:
+            uploaded_bhajan = st.file_uploader("Choose an audio file", type=["mp3", "m4a", "wav"])
             
             if uploaded_bhajan is not None:
                 # We store the file in session state for now so the student can hear it
